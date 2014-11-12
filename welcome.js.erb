@@ -1,0 +1,516 @@
+//width and height of the frames
+var WIDTH = 640, HEIGHT = 480;
+
+//number of frames per second in the animations
+var FPS = 60;
+
+//canvas object and its 2d context (used to display frames in game).  Will assign once page loaded.
+var canvas, context;
+
+//The mode the page is in (determined by the tab that is open)
+var mode =  {
+  DEMO: 0,
+  PLAY: 1,
+  STUDY: 2,
+
+  //start off in the play tab.  Will switch to demo tab when it's done
+  current: 1
+}
+
+//Key bindings for each tech option (default arrow keys but player can change them
+var bindings = {
+  selected: null, //the option currently being set by the user
+  inplace: 38, //up
+  left: 37, //left
+  right: 39, //right
+  miss: 40 //down
+};
+
+//Player's input choice and timestamp
+var reaction = {
+  choice: '',
+  time: 0,
+  frame: 0
+};
+
+//Callback for when the animation is completed (can be changed based on the animation)
+function animComplete() {
+  console.log('Animation finished.');
+}
+
+//Constructor for an animation clip containing a sprite sheet and relevant metadata
+//the sprite sheet contains all the frames of the animation, stitched together vertically
+function Clip(name, source, length) {
+  this.name = name;
+  this.spriteSheet = new Image();
+  this.spriteSheet.src = source;
+  this.loaded = false;
+  var that = this; //so we can access this within the onload function
+  this.spriteSheet.onload = function() {
+    that.loaded = true;
+    console.log(name + " loaded");}
+  this.length = length;
+}
+
+//All clips for current character
+var clips = {
+  fall: new Clip('fall', '/assets/fox/fall/sheet.png', FRAMES.fox.fall),
+  inplace: new Clip('inplace', '/assets/fox/inplace/sheet.png', FRAMES.fox.inplace),
+  left: new Clip('left', '/assets/fox/left/sheet.png', FRAMES.fox.left),
+  right: new Clip('right', '/assets/fox/right/sheet.png', FRAMES.fox.right),
+  miss: new Clip('miss', '/assets/fox/miss/sheet.png', FRAMES.fox.miss)
+}
+
+//An animation that is made up of multiple clips
+var animation = {
+  //list of clips in this animation
+  clips: [],
+
+  //list of the frame counts at which each clip starts 
+  //i.e. this.clips[i] starts on the frame number in this.startFrames[i]
+  startFrames: [],
+
+  //the time this animation was started (null if not currently playing)
+  start: null,
+
+  //the frame on which the current playback was started
+  startFrame: 0,
+
+  //the number of the current frame (0 = first frame)
+  currentFrame: 0,
+
+  //the number of the current clip (0 = first clip in this.clips)
+  currentClip: 0,
+
+  paused: true,
+
+  //display the current frame in the game canvas
+  displayFrame: function() {
+  	//y coordinate of the top of the current frame (within sprite sheet)
+        y = (this.currentFrame - this.startFrames[this.currentClip]) * HEIGHT;
+
+       	//the frame of the current clip (0 is first frame in current clip)
+      	clipFrame = this.currentFrame - this.startFrames[this.currentClip]
+	context.drawImage(this.clips[this.currentClip].spriteSheet, 0, y, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT);
+  },
+
+  //Use to set currentFrame.  Also updates currentClip
+  setFrame: function(frame) {
+        //check if frame is in valid range
+        lastClip = this.clips.length -1
+        lastFrame = this.startFrames[lastClip] + this.clips[lastClip].length -1
+        if (frame > lastFrame) {
+          //set to last possible frame
+          this.currentClip = lastClip;
+          this.currentFrame = lastFrame;
+        } else {       
+          this.currentFrame = frame;
+          clipNo = 0;
+	  while (clipNo + 1 <= lastClip && this.startFrames[clipNo + 1] < frame) {
+            clipNo += 1;
+          }
+          this.currentClip = clipNo;
+       }    
+  },
+
+  //Sets this.clips to clips, updates this.startFrames, and resets all playback data.
+  setClips: function(clips) {
+  	this.clips = clips;
+        this.startFrames = [0]
+	for (i = 1; i < clips.length; i++) {
+	  this.startFrames[i] = this.startFrames[i-1] + clips[i-1].length;
+        }
+        this.paused = true;
+        this.start = null;
+        this.startFrame = this.currentFrame = this.currentClip = 0;     
+        
+  },
+
+  //start playing the animation
+  play: function() {
+        //make sure animation is in a valid place to play
+  	if (this.currentClip >= this.clips.length || this.currentFrame >= this.startFrames[this.currentClip] + this.clips[this.currentClip].length) {
+	  console.log('Could not play clip ' + currentClip + ' on frame ' + currentFrame);
+	  return;
+        }
+
+        //set the animation to paused so the first time this.update gets called it will consider it the start of the playback
+        this.paused = true;
+
+	//request for this.update to be called before the next screen refresh
+        //using anonymous function to call update because just passing in this.update causes the function to be called out of context so 
+        //'this' will not refer to animation update gets called
+        requestAnimationFrame(function(timestamp){animation.update(timestamp)});
+  },
+
+  //update the animation based on the current time (callback to be called by browser before display is updated)
+  update: function(timestamp) {
+        //Check if this is the first frame since start of playback
+        if (this.paused) {
+	  this.start = timestamp;
+          this.paused = false;
+        }
+
+       //time since playback started in ms
+       dt = timestamp - this.start;
+       
+       //convert to seconds and multiply by frames per second to get frame number 
+       this.setFrame(Math.floor(dt/1000 * FPS) + this.startFrame);
+       //console.log(this.currentFrame);
+       this.displayFrame();
+
+       //update again before next screen refresh if animation not complete
+       lastClip = this.clips.length -1
+       if (this.currentFrame < this.startFrames[lastClip] + this.clips[lastClip].length - 1) {
+         requestAnimationFrame(function(t){animation.update(t)});
+       } else {
+         console.log('Animation Complete');
+         console.log('took ' + (timestamp - this.start) + ' ms to display '+this.currentFrame+ ' frames');
+	 this.paused = true;
+         animComplete();
+       }   
+  }
+  
+};
+
+/**
+ * Constructor for an object that represents a piece of stylized text to write to the canvas
+ * @param {string} text - The text to be shown on the canvas
+ * @param {number} size - The css size of the text in pixels
+ * @param {string} color - The css color of the text
+ * @param {number} top - The Y coordinate of the top of the text (measured from top of canvas)
+ */
+function CanvasText(text, size, color, top) {
+  this.text = text;
+  this.size = size;
+  this.color = color;
+  this.top = top;
+  this.font = "Times New Roman";
+  this.centered = true; //center by default, this can be changed if needed
+  this.left = 0; //x coordinate of left boundry of text (only used if not centered);
+  this.width = WIDTH; //the width (in pixels) of displayed text
+  this.outline = 0; //width of outline (0 by default)
+  this.outlineColor = "#000000";
+}
+
+//Draws text represented by this instance of CanvasText to the canvas
+CanvasText.prototype.draw = function() {
+  context.font = this.size + "px " + this.font;
+  context.fillStyle = this.color;
+  lines = this.text.split('\n');
+  lineNumber = 0;
+
+  while (lines.length > 0) {
+    lineNumber += 1;
+    line = lines.shift();
+
+    //If line is too long, figure out how many characters we can fit
+    if (context.measureText(line).width > this.width) {
+      words = line.split(" ");
+      line = words.shift() //print at least one word even if it does not fit
+      next = "";
+      while (context.measureText(line + " " +  next).width < this.width) {
+        line += " " + next;
+        next = words.shift();
+      }
+      //put whatever does not fit in next line
+      remaining = next;
+      while (words.length > 0) {
+        remaining += " " + words.shift();
+      }
+      lines.unshift(remaining);
+    }
+
+
+    this.centered ? x = (WIDTH - context.measureText(line).width)/2 
+       	 	  : x = this.left;
+    y = this.top + ((lineNumber) * this.size);
+
+    if (this.outline > 0) {
+      context.strokeStyle = this.outlineColor;
+      context.lineWidth = 2 * this.outline + 1;
+      context.strokeText(line, x, y);
+    }
+    context.fillText(line, x, y);
+  }
+    
+};
+
+//Handle user clicking "demo" tab
+function showDemo() {
+  mode.current = mode.DEMO;
+  context.fillStyle = '#000000';
+  context.fillRect(0,0,WIDTH,HEIGHT);
+
+  var message = new CanvasText("Coming Soon", 40, "#FFFFFF", 50);
+  message.draw();
+
+  message.text = "This is a quick tutorial on how to use the site, but it's not ready yet.";
+  message.color = "#bbbbbb";
+  message.top = 150;
+  message.size = 22;
+  message.draw();
+  window.mess = message;
+  
+}
+
+//Handle user clicking "study" tab
+function showStudy() {
+  mode.current = mode.STUDY;
+  context.fillStyle = '#000000';
+  context.fillRect(0,0,WIDTH,HEIGHT);
+
+  var message = new CanvasText("Coming Soon", 40, "#FFFFFF", 50);
+  message.draw();
+
+  message.text = "You can use this tab to study the animations.\nWatch them in slow motion or even frame by frame.";
+  message.color = "#bbbbbb";
+  message.top = 150;
+  message.size = 22;
+  message.draw();
+  window.mess = message;
+}
+
+//handle user clicking "play" tab
+function showGame() {
+  mode.current = mode.PLAY;
+  showLoading();
+}
+
+function showLoading() {
+  var total = 0, loaded = 0;
+  for (key in clips) {
+    if (clips.hasOwnProperty(key)) {
+      total += 1;
+      if (clips[key].loaded) {
+        loaded += 1;
+      }
+    }
+  }
+  if (total === loaded) return showReady();
+
+  context.clearRect(0,0,WIDTH,HEIGHT);
+  context.fillStyle = '#000000';
+  context.fillRect(0,0,WIDTH,HEIGHT);
+  context.font = "50px Times New Roman";
+  context.fillStyle = '#FFFFFF';
+  context.fillText("Loading...", 220,110);
+  context.strokeRect(120, 160, 400, 40); 
+  context.fillRect(120, 162, 396 * loaded/total, 36);
+
+  //Refresh the loading page to show progress, if tab is still open
+  setTimeout(function() {if (mode.current === mode.PLAY) showLoading();}, 100);
+}
+
+function showReady() {
+  //display each spritesheet once so they will load quickly during the animations later
+  for (key in clips) {
+    if (clips.hasOwnProperty(key)) {
+	context.drawImage(clips[key].spriteSheet, 0, 0, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT);
+    }
+  }
+
+  context.fillStyle = '#000000';
+  context.fillRect(0,0,WIDTH,HEIGHT);
+  context.font = "50px Times New Roman";
+  context.fillStyle = '#FFFFFF';
+  context.fillText("Instructions:", 200, 110);
+  context.font = "25px Times New Roman";
+  context.fillText("-You will see fox falling and teching randomly", 100, 160);
+  context.fillText("-Try to quickly react to the tech option chosen", 100, 190);
+  context.fillText("-Press up for a tech in place,", 100, 220);
+  context.fillText("-right/left for a tech roll,", 100, 250);
+  context.fillText("-and down for a missed tech.", 100, 280);
+  context.font = "40px Times New Roman";
+  context.fillText("Press space to start tech chasing.", 50, 340);
+}
+
+//Display the results of the last round
+function techChaseResults() {
+  correct = animation.clips[animation.clips.length-1].name;
+  var reactionTimeFrames = reaction.frame - 15; //tech starts frame 15
+
+  //Display the frame on which user pressed a key
+  if (reaction.frame > 0) {
+    animation.setFrame(reaction.frame);
+  }
+  animation.displayFrame();
+
+  //Make a box for results
+  context.fillStyle = 'rgba(255, 255, 255, .6)';
+  context.fillRect(20, 20, WIDTH-40, HEIGHT * 2/3 - 40);
+
+  //Feedback to display
+  var resp, respColor, expl;
+  if (reaction.choice === '') {
+    resp = 'TOO SLOW!';
+    respColor = 'rgb(255, 0, 0)';
+    expl = 'The animation finished before you \n pressed a key.';
+  } else if (correct !== reaction.choice) {
+    resp = 'OOPS!';
+    respColor = 'rgb(255, 0, 0)';
+    expl = 'You chose ' + reaction.choice + ' but it was ' + correct;
+  } else {
+    resp = 'GOOD!';
+    respColor = 'rgb(0, 255, 0)';
+    var framesLeft = animation.clips[animation.clips.length-1].length - reactionTimeFrames;
+    expl = 'You chose the correct option and your \n reaction speed was ' +
+     reactionTimeFrames + ' frames. Fox was \n vulnerable for ' +
+     framesLeft + ' more frames.';
+  }
+
+  //Write the results
+  context.font = "60px Sans-serif";
+  context.strokeStyle = 'rgb(0,0,0)';
+  context.lineWidth = 5;
+  context.strokeText(resp, 180, 85);
+  context.fillStyle = respColor;
+  context.fillText(resp, 180, 85);
+
+  context.font = "30px Sans-serif";
+  context.fillStyle = 'rgb(0,0,0)';
+  var lines = expl.split('\n');
+  for (var n = 0; n < lines.length; n++) {  
+    context.fillText(lines[n], 60, 130 + 35 * n);
+  }
+  context.font = "35px Sans-serif";
+  context.fillText("Press space to try again.", 110, HEIGHT * 2/3 -60);
+  
+}
+
+//play one round of the reaction game
+function playRound() {
+  var rng = Math.random();
+  var choice;
+  if (rng < .25) {
+    choice = 'inplace';
+  } else if (rng < .5) {
+    choice = 'left';
+  } else if (rng < .75) {
+    choice = 'right';
+  } else {
+    choice = 'miss';
+  }
+  animation.setClips([clips.fall, clips[choice]]);
+  reaction.choice = '';
+  reaction.time = 0;
+  reaction.frame = 0;
+  animComplete = techChaseResults;
+  animation.displayFrame();
+  toWait = 1000 * parseFloat($("#startDelay").val());
+  window.setTimeout(function() {animation.play();}, toWait);
+}
+//keyboard controlls for the game
+$(document).keydown(function(e) {
+  //don't do default actions for keypresses so page doesn't move around when
+  //the player uses arrow keys
+  e.preventDefault();
+  //handle binding controls 
+  var key = e.which
+  if (bindings.selected !== null) {
+    //get option being bound from name of button
+    buttonMap = {CB1: "left", CB2: "right", CB3: "inplace", CB4: "miss"}
+    option = buttonMap[bindings.selected]
+
+    //The text representation for the key
+    var keyName = null;
+    switch (key) {
+      //standard controlls
+      case 37: keyName = "[left arrow]"; break;
+      case 38: keyName = "[up arrow]"; break;
+      case 39: keyName = "[right arrow]"; break;
+      case 40: keyName = "[down arrow]"; break;
+      //other unusual keys
+      case 8: keyName = "[backspace]"; break;
+      case 9: keyName = "[tab]"; break;
+      case 13: keyName = "[enter]"; break;
+      case 16: keyName = "[shift]"; break;
+      case 17: keyName = "[ctrl]"; break;
+      case 18: keyName = "[alt]"; break;
+      case 20: keyName = "[capslock]"; break;
+      case 33: keyName = "[page up]"; break;
+      case 34: keyName = "[page down]"; break;
+      case 35: keyName = "[end]"; break;
+      case 36: keyName = "[home]"; break;
+      case 45: keyName = "[insert]"; break;
+      case 46: keyName = "[delete]"; break;
+      //actual characters
+      default: keyName = String.fromCharCode(key);
+    }
+
+    //don't let user assign to space (the key to start a round) or an already bound key
+    bound = []
+    for (x in buttonMap) {
+      if (bindings.selected != x) bound.push(bindings[buttonMap[x]]);
+    }
+    if (key === 32) {
+      //TODO: replace alerts with more elegant messages
+      alert("The space key is reserved for starting the game");
+    } else if (key === bound[0] || key === bound[1] || key === bound[2]) {
+      alert(keyName + " is already bound!");
+    } else { 
+      bindings[option] = e.which;
+      //The text element within the button that displays the binding
+      var selector = "#" + bindings.selected;
+      var text = $(selector).children()[0];
+      text.innerText = keyName;
+    }
+    //unselect after new binding is recorded
+    bindings.selected = null;
+  } 
+
+  //handle starting the game (space)
+  else if (e.which === 32) {
+    playRound();
+  }
+
+  //handle in-game button presses (ignore if choice already made)
+  else if (! reaction.choice){
+    reaction.time = Date.now();
+    reaction.frame = animation.currentFrame;
+    //Check all bindings to see if pressed button is a bound key
+    for (option in bindings) {
+      if (e.which === bindings[option]) {
+        reaction.choice = option;
+      }
+    }
+  }
+  return;
+});
+
+
+$(document).ready(function() {
+  canvas = document.getElementById('game');
+  context = canvas.getContext('2d');
+
+  //Event handler for clicking control binding buttons
+  $('.controllsButton').click(function(){
+    //the name of the button clicked
+    name = this.id;
+
+    //If button already selected, unselect it
+    if (bindings.selected === name) {
+      bindings.selected = null;
+    } else {
+      bindings.selected = name;
+    }
+  });
+
+ $(".tab").click(function() {
+    console.log('clicked');
+    switch (this.id) {
+      case "demo":
+        showDemo();
+        break;
+      case "play":
+        showGame();
+        break;
+      case "study":
+        showStudy();
+        break;
+    }	
+  });
+
+  showGame();
+});
+

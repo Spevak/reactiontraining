@@ -1,0 +1,86 @@
+<div id="title">
+  MELEE REACTION TRAINING
+</div>
+</br>
+<!-- contains all the game content on the page -->
+<div id="dashboard">
+  <!-- left half of the dashboard. Used for positioning elments within -->
+  <div class="half" id="left">
+    <!-- settings panel to the left of the game -->
+    <div id="settings">
+      <!-- container for settings relating to gameplay (for easily hiding or revealing all) -->
+      <div id="gameSettings" class="settingsContainer">
+        <div id="controlls">
+          <div id="controllsHeader">
+            Change the controlls below.
+          </div>
+          <div id="controllsButtons" >
+            <button id="CB1" class="controllsButton">
+              Tech Left:
+              <text> [left arrow] </text>
+            </button>
+            <button id="CB2" class="controllsButton">
+	      Tech Right:
+              <text> [right arrow] </text>
+	    </button>
+            <button id="CB3" class="controllsButton">
+	      Tech In Place:
+	      <text> [up arrow] </text>
+	    </button>
+            <button id="CB4" class="controllsButton">
+	      Missed Tech:
+	      <text> [down arrow] </text>
+	    </button>
+          </div>
+        </div>
+	</br>
+        <div id="gameSpeed">
+          <div id="gameSpeedHeader">
+            Change the delay before fox drops.
+          </div>
+          <div id="gameSpeedSlider">
+            0 seconds
+	    <input id="startDelay" type="range" min="0", max="2", step=".2" value=".4"/>
+            2 seconds
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="half" id="right">
+    <div id="info">
+      <div id="about">
+      <div class="aboutTitle"> About </div> 
+      <div class="aboutText">
+         This site is designed to help players improve on their reaction speed in Super Smash Bros Melee. To play at a competitive level, it is necessary to make decisions quickly on reaction to visual cues.  Here, you can practice these micro-situations individually and get feedback on your reactions.  The first exercise that we've developed is a tech chase simulator: the game will show a character doing a random tech option and it's up to you to quickly recognize the option.  
+      </div>
+      <div class="aboutTitle"> Coming Soon </div>
+      <div class="aboutText">
+         We have plenty of upcoming features planned, including: choice of character to "tech chase", a "study" mode where you can watch the animations in slow motion or go frame by frame, and user accounts to track your progress over time and cater the training to you.  
+      </div>
+      <div class="aboutTitle"> Team </div>
+      <div class="aboutText"> 
+      Project leader, web developer: Kevin Spevak
+      <br>
+      Frame collection: DJ (DJLO) Hawkes, David (Kadano) Shmid 
+      <br>
+      Original Concept: Max Leatham
+      </div>
+      </div>
+    </div>
+  </div>
+  <!-- The middle of the dashboard containing the game and buttons for the different modes -->
+  <div id="center"> 
+    <button id="demo" class="tab">Demo</button>
+    <button id="play" class="tab">Play</button>
+    <button id="study" class="tab">Study</button>
+    </br>
+    <!-- Where the actual frames are displayed -->
+    <canvas id="game" width="640" height="480">
+    If you can see this text, your browser does not support the HTML5 canvas element. <br>
+    HTML5 canvas support is required to play this game.
+    </canvas>
+    <br>
+  </div>
+</div>
+
